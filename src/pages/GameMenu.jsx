@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { signOut } from "firebase/auth";
+import { signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebaseDB";
@@ -9,12 +9,26 @@ export default function GameMenu() {
   const [view, setView] = useState("menu"); // menu | p1Stats | p2Stats
   const [p1Stats, setP1Stats] = useState(null);
   const [p2Stats, setP2Stats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const navigate = useNavigate();
   const location = useLocation();
   const { player1Uid, player2Uid } = location.state || {};
 
-  // Fetch player stats from Firebase
+  // ✅ Redirect if user not logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        navigate("/"); // redirect to home/login
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
+
+  // ✅ Fetch player stats from Firebase
   useEffect(() => {
     const fetchPlayerData = async (uid, setStats, playerLabel) => {
       if (!uid) {
@@ -41,12 +55,20 @@ export default function GameMenu() {
     navigate("/"); // back to login
   };
 
+  // ✅ Go to gameplay screen
+  const handlePlay = () => {
+    navigate("/gameplay", {
+      state: { player1Uid, player2Uid }, // pass both UIDs
+    });
+  };
+
   const menuItemStyle =
     "text-white text-3xl mb-6 cursor-pointer transition-transform duration-200 hover:scale-125";
 
   const renderMenu = () => (
     <div className="flex flex-col items-center gap-8">
-      <p className={menuItemStyle} onClick={() => alert("Start Game!")}>
+      {/* ✅ Updated Play button to navigate to gameplay */}
+      <p className={menuItemStyle} onClick={handlePlay}>
         ▶ Play
       </p>
       <p className={menuItemStyle} onClick={() => setView("p1Stats")}>

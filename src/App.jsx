@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import GameMenu from "./pages/GameMenu";
+import GamePlay from "./pages/GamePlay";
 
 function App() {
   const [player1Uid, setPlayer1Uid] = useState(null);
@@ -36,6 +37,7 @@ function App() {
             />
           }
         />
+        <Route path="/gameplay" element={<GamePlay />} />
       </Routes>
     </Router>
   );
