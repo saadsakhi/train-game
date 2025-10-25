@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { useLocation, useNavigate } from "react-router-dom";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseDB";
+import { createPortal } from "react-dom";
 
 export default function GamePlay({ speed = 500 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { player1Uid, player2Uid } = location.state || {};
 
   const [loaded, setLoaded] = useState(false);
@@ -13,6 +15,7 @@ export default function GamePlay({ speed = 500 }) {
   const [stopped, setStopped] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [arrived, setArrived] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   const [player1Pos, setPlayer1Pos] = useState({ x: 200, y: window.innerHeight / 2 + 80 });
   const initialPosRef = useRef({ x: 200, y: window.innerHeight / 2 + 80 });
@@ -24,6 +27,9 @@ export default function GamePlay({ speed = 500 }) {
   const [p1Name, setP1Name] = useState("Not logged");
   const [p2Name, setP2Name] = useState("Not logged");
 
+  const [p1Score, setP1Score] = useState(0);
+  const [p2Score, setP2Score] = useState(0);
+
   const [brokenTiles, setBrokenTiles] = useState(new Set());
   const brokenTilesRef = useRef(new Set());
   const lastVisibleIndexRef = useRef(null);
@@ -32,13 +38,14 @@ export default function GamePlay({ speed = 500 }) {
 
   const stationIndex = 50;
 
-  // --- Repair state ---
-  const [repairingTile, setRepairingTile] = useState(null); // { idx, xPos, returning }
+  const [repairingTile, setRepairingTile] = useState(null);
   const repairStartPosRef = useRef({ x: 0, y: 0 });
 
   // --- Prevent zoom ---
   useEffect(() => {
-    const preventZoomKeys = (e) => { if ((e.ctrlKey && ["+", "-", "="].includes(e.key)) || e.key === "Meta") e.preventDefault(); };
+    const preventZoomKeys = (e) => {
+      if ((e.ctrlKey && ["+", "-", "="].includes(e.key)) || e.key === "Meta") e.preventDefault();
+    };
     const preventWheelZoom = (e) => { if (e.ctrlKey) e.preventDefault(); };
     const preventTouchZoom = (e) => { if (e.touches.length > 1) e.preventDefault(); };
     document.addEventListener("keydown", preventZoomKeys, { passive: false });
@@ -64,7 +71,8 @@ export default function GamePlay({ speed = 500 }) {
     let loadedCount = 0;
     const handleLoad = () => {
       loadedCount++;
-      if (loadedCount === 6) setImages({ ground, rail, train, station, walking, walkingStatic }), setLoaded(true);
+      if (loadedCount === 6)
+        setImages({ ground, rail, train, station, walking, walkingStatic }), setLoaded(true);
     };
     ground.src = "/assets/ground111.png";
     rail.src = "/assets/railway.png";
@@ -92,7 +100,6 @@ export default function GamePlay({ speed = 500 }) {
     return () => { mounted = false; };
   }, [player1Uid, player2Uid]);
 
-  // --- Handle breaking tiles ---
   const breakTile = (logicalIndex) => {
     if (arrived) return;
     if (Math.abs(logicalIndex - stationIndex) < 3) return;
@@ -100,26 +107,59 @@ export default function GamePlay({ speed = 500 }) {
     setBrokenTiles(new Set(brokenTilesRef.current));
   };
 
+  const fetchPlayerScore = async (uid, setScore) => {
+    if (!uid) return setScore(0);
+    try {
+      const d = await getDoc(doc(db, "users", uid));
+      if (d.exists()) setScore(d.data().score ?? 0);
+      else setScore(0);
+    } catch (err) {
+      console.error("❌ Failed to fetch score:", err);
+      setScore(0);
+    }
+  };
+
   // --- Train control ---
   useEffect(() => {
-    const handleKeyDown = (e) => { if (e.code === "Space" && !stopped && !arrived) { e.preventDefault(); setIsMoving(true); } };
-    const handleKeyUp = (e) => { if (e.code === "Space") { e.preventDefault(); setIsMoving(false); } };
+    const handleKeyDown = (e) => {
+      if (e.code === "Space" && !stopped && !arrived && !showMenu) {
+        e.preventDefault();
+        setIsMoving(true);
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        setIsMoving(false);
+      }
+    };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [stopped, arrived]);
+  }, [stopped, arrived, showMenu]);
 
-  // --- Player 1 walking ---
+  // --- ESC menu toggle ---
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") {
+        setShowMenu((prev) => !prev);
+        setIsMoving(false);
+      }
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, []);
+
+  // --- Player movement ---
   const pressedKeysRef = useRef(new Set());
   useEffect(() => {
-    if (stopped && !arrived && !repairingTile) {
+    if (stopped && !arrived && !repairingTile && !showMenu) {
       const moveSpeed = 10;
-
       const handleKeyDown = (e) => {
-        if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) {
+        if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
           pressedKeysRef.current.add(e.key);
           setIsWalking(true);
           setPlayer1Pos((pos) => {
@@ -132,14 +172,12 @@ export default function GamePlay({ speed = 500 }) {
           });
         }
       };
-
       const handleKeyUp = (e) => {
-        if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) {
+        if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
           pressedKeysRef.current.delete(e.key);
           if (pressedKeysRef.current.size === 0) setIsWalking(false);
         }
       };
-
       window.addEventListener("keydown", handleKeyDown);
       window.addEventListener("keyup", handleKeyUp);
       return () => {
@@ -147,31 +185,33 @@ export default function GamePlay({ speed = 500 }) {
         window.removeEventListener("keyup", handleKeyUp);
       };
     }
-  }, [stopped, arrived, repairingTile]);
+  }, [stopped, arrived, repairingTile, showMenu]);
 
   // --- Train movement ---
   useEffect(() => {
-    if (!loaded || stopped || !isMoving || arrived) return;
-
+    if (!loaded || stopped || !isMoving || arrived || showMenu) return;
     const step = (time) => {
       if (!lastTimeRef.current) lastTimeRef.current = time;
       const dt = (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
-
       setOffset((prev) => {
         const newOffset = prev + speed * dt;
         checkStop(newOffset);
         return newOffset;
       });
-
       if (!stopped && isMoving) rafRef.current = requestAnimationFrame(step);
     };
-
     const checkStop = (currentOffset) => {
       const tileWidth = 300;
       const trainTileIndex = Math.floor(currentOffset / tileWidth);
-      const extra = -150;
-      if (trainTileIndex >= stationIndex - 2) { setArrived(true); setStopped(true); setIsMoving(false); cancelAnimationFrame(rafRef.current); return; }
+      if (trainTileIndex >= stationIndex - 2) {
+        setArrived(true);
+        setStopped(true);
+        setIsMoving(false);
+        cancelAnimationFrame(rafRef.current);
+        updateScoresInDB();
+        return;
+      }
       const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
       const baseOffset = currentOffset % tileWidth;
       const leftmostIndex = Math.floor(currentOffset / tileWidth);
@@ -179,18 +219,19 @@ export default function GamePlay({ speed = 500 }) {
         const idx = leftmostIndex + i;
         if (brokenTilesRef.current.has(idx)) {
           const x = -baseOffset + i * tileWidth;
-          if (x >= 0 && x + tileWidth <= window.innerWidth + extra) {
-            setStopped(true); setIsMoving(false); cancelAnimationFrame(rafRef.current); break;
+          if (x >= 0 && x + tileWidth <= window.innerWidth - 150) {
+            setStopped(true);
+            setIsMoving(false);
+            cancelAnimationFrame(rafRef.current);
+            break;
           }
         }
       }
     };
-
     rafRef.current = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(rafRef.current); lastTimeRef.current = null; };
-  }, [loaded, speed, stopped, isMoving, arrived]);
+  }, [loaded, speed, stopped, isMoving, arrived, showMenu]);
 
-  // --- Mouse click to repair ---
   const isClickOnGap = (e) => {
     const tileWidth = 300;
     const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
@@ -208,28 +249,32 @@ export default function GamePlay({ speed = 500 }) {
   };
 
   const handleRepairClick = (e) => {
-    if (repairingTile) return;
+    if (repairingTile || showMenu) return;
     const target = isClickOnGap(e);
     if (!target) return;
+    const tileWidth = 300;
+    const tileLeft = target.xPos;
+    const tileRight = tileLeft + tileWidth;
+    const playerWidth = 50;
+    const playerLeft = player1Pos.x;
+    const playerRight = player1Pos.x + playerWidth;
+    const isInsideBrokenArea = playerRight >= tileLeft && playerLeft <= tileRight;
+    if (!isInsideBrokenArea) return console.log("You need to stand on the broken rail to repair it!");
     setRepairingTile({ ...target, returning: false });
-    repairStartPosRef.current = { ...initialPosRef.current }; // Always go back to initial position
+    repairStartPosRef.current = { ...initialPosRef.current };
     setIsWalking(true);
-    console.log("Repair clicked:", target);
   };
 
   // --- Animate repair ---
   useEffect(() => {
     if (!repairingTile) return;
     let animId;
-
     const animate = () => {
       setPlayer1Pos((pos) => {
         const speed = 8;
         let targetX, targetY;
-
         if (!repairingTile.returning) {
-          // First move down if needed
-          if (pos.y < window.innerHeight / 2 + 120) { // move below railway
+          if (pos.y < window.innerHeight / 2 + 120) {
             targetY = window.innerHeight / 2 + 120;
             targetX = pos.x;
           } else {
@@ -240,101 +285,334 @@ export default function GamePlay({ speed = 500 }) {
           targetX = repairStartPosRef.current.x;
           targetY = repairStartPosRef.current.y;
         }
-
         const dx = targetX - pos.x;
         const dy = targetY - pos.y;
-
-        // If reached target
         if (Math.abs(dx) <= speed && Math.abs(dy) <= speed) {
           if (!repairingTile.returning) {
-            console.log("Repairing tile:", repairingTile.idx);
             const updated = new Set(brokenTilesRef.current);
             updated.delete(repairingTile.idx);
             brokenTilesRef.current = updated;
             setBrokenTiles(updated);
             setRepairingTile({ ...repairingTile, returning: true });
+
+            setP1Score((s) => s + 50);
+            setP2Score((s) => s + 50);
+
             return pos;
           } else {
-            console.log("Returned to initial position");
-            setRepairingTile(null);
+            setStopped(false);
             setIsWalking(false);
+            setRepairingTile(null);
             return { ...initialPosRef.current };
           }
         }
-
-        return {
-          x: pos.x + Math.sign(dx) * speed,
-          y: pos.y + Math.sign(dy) * speed,
-        };
+        return { x: pos.x + Math.sign(dx) * speed, y: pos.y + Math.sign(dy) * speed };
       });
-
       if (repairingTile) animId = requestAnimationFrame(animate);
     };
-
     animId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animId);
   }, [repairingTile]);
 
-  // --- Render tiles ---
-  const renderTiles = () => {
-    const tileWidth = 300;
-    const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
-    const baseOffset = offset % tileWidth;
-    const leftmostIndex = Math.floor(offset / tileWidth);
-    const rightmostIndex = leftmostIndex + visibleTiles - 1;
-
-    if (lastVisibleIndexRef.current === null) lastVisibleIndexRef.current = rightmostIndex;
-    else if (rightmostIndex > lastVisibleIndexRef.current) {
-      newTileCounterRef.current++;
-      lastVisibleIndexRef.current = rightmostIndex;
-      if (!arrived && newTileCounterRef.current >= nextBreakAfterRef.current) {
-        breakTile(rightmostIndex);
-        newTileCounterRef.current = 0;
-        nextBreakAfterRef.current = 4 + Math.floor(Math.random() * 3);
+  // --- Update player score after game ends ---
+  const updateScoresInDB = async () => {
+    try {
+      if (player1Uid && p1Score > 0) {
+        const player1Doc = doc(db, "users", player1Uid);
+        const player1Snap = await getDoc(player1Doc);
+        const currentP1Score = player1Snap.exists() ? player1Snap.data().score ?? 0 : 0;
+        await updateDoc(player1Doc, { score: currentP1Score + p1Score });
       }
-    }
 
-    const tiles = [];
-    for (let i = -1; i < visibleTiles - 1; i++) {
-      const idx = leftmostIndex + i;
-      const x = -baseOffset + i * tileWidth;
-      const isBroken = brokenTiles.has(idx);
-      tiles.push(
-        <div
-          key={`rail-${idx}`}
-          style={{
-            position: "absolute",
-            left: `${x}px`,
-            top: 0,
-            width: `${tileWidth}px`,
-            height: "100%",
-            backgroundImage: isBroken ? "none" : `url(${images.rail.src})`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "100% 100%",
-            pointerEvents: "none",
-          }}
-        />
-      );
+      if (player2Uid && p2Score > 0) {
+        const player2Doc = doc(db, "users", player2Uid);
+        const player2Snap = await getDoc(player2Doc);
+        const currentP2Score = player2Snap.exists() ? player2Snap.data().score ?? 0 : 0;
+        await updateDoc(player2Doc, { score: currentP2Score + p2Score });
+      }
+
+      // ✅ Reset scores after arrival
+      setTimeout(() => {
+        setP1Score(0);
+        setP2Score(0);
+      }, 500);
+    } catch (err) {
+      console.error("❌ Failed to update scores:", err);
     }
-    return tiles;
   };
 
-  if (!loaded) return <div className="w-screen h-screen flex items-center justify-center bg-black text-white">Loading assets...</div>;
+  useEffect(() => {
+    // Just reset local round scores to 0 when game starts
+    setP1Score(0);
+    setP2Score(0);
+  }, [player1Uid, player2Uid]);
+
+  // --- Helper function to format seconds ---
+function formatTime(seconds) {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  let result = "";
+  if (hrs > 0) result += `${hrs} hr${hrs > 1 ? "s" : ""} `;
+  if (mins > 0 || hrs > 0) result += `${mins} min `;
+  result += `${secs} sec`;
+  return result.trim();
+}
+
+  useEffect(() => {
+    if (!player1Uid || !player2Uid) {
+      navigate("/", { replace: true });
+    }
+  }, [player1Uid, player2Uid, navigate]);
+
+// --- Time tracking useEffect ---
+useEffect(() => {
+  const startTime = Date.now();
+
+  const saveTimeSpent = async () => {
+    const endTime = Date.now();
+    const sessionTime = Math.floor((endTime - startTime) / 1000);
+
+    const prevTime = parseInt(localStorage.getItem("unsavedTime")) || 0;
+    const totalTime = prevTime + sessionTime;
+    localStorage.setItem("unsavedTime", totalTime);
+
+    try {
+      const updatePlayerTime = async (uid) => {
+        if (!uid) return;
+        const playerRef = doc(db, "users", uid);
+        const snap = await getDoc(playerRef);
+        const currentTime = snap.exists() ? snap.data().timeSpent ?? 0 : 0;
+        const newTotal = currentTime + totalTime;
+
+        await updateDoc(playerRef, { timeSpent: newTotal });
+        console.log(`🕒 Updated time for ${uid}: ${formatTime(newTotal)}`);
+      };
+
+      await Promise.all([
+        updatePlayerTime(player1Uid),
+        updatePlayerTime(player2Uid),
+      ]);
+
+      // Reset localStorage after successful update
+      localStorage.removeItem("unsavedTime");
+    } catch (err) {
+      console.error("❌ Failed to update timeSpent:", err);
+    }
+  };
+
+  window.addEventListener("beforeunload", saveTimeSpent);
+  return () => {
+    saveTimeSpent();
+    window.removeEventListener("beforeunload", saveTimeSpent);
+  };
+}, [player1Uid, player2Uid]);
+useEffect(() => {
+  const startTime = Date.now();
+
+  const saveTimeSpent = async () => {
+    const endTime = Date.now();
+    const sessionTime = Math.floor((endTime - startTime) / 1000);
+
+    // Load previous unsaved time from localStorage
+    const prevTime = parseInt(localStorage.getItem("unsavedTime")) || 0;
+    const totalTime = prevTime + sessionTime;
+
+    // Save back to localStorage in case the user refreshes again
+    localStorage.setItem("unsavedTime", totalTime);
+
+    // Now update Firestore
+    try {
+      const updatePlayerTime = async (uid) => {
+        if (!uid) return;
+        const playerRef = doc(db, "users", uid);
+        const snap = await getDoc(playerRef);
+        const currentTime = snap.exists() ? snap.data().timeSpent ?? 0 : 0;
+        await updateDoc(playerRef, { timeSpent: currentTime + totalTime });
+      };
+
+      await Promise.all([
+        updatePlayerTime(player1Uid),
+        updatePlayerTime(player2Uid),
+      ]);
+
+      console.log(`🕒 Total time updated: ${totalTime}s`);
+      // Reset localStorage after successfully saving
+      localStorage.removeItem("unsavedTime");
+    } catch (err) {
+      console.error("❌ Failed to update timeSpent:", err);
+    }
+  };
+
+  // Save on unmount
+  window.addEventListener("beforeunload", saveTimeSpent);
+  return () => {
+    saveTimeSpent();
+    window.removeEventListener("beforeunload", saveTimeSpent);
+  };
+}, [player1Uid, player2Uid]);
+
+
+  const handleResume = () => setShowMenu(false);
+  const handleExit = () => {
+  navigate("/game", {
+    state: {
+      player1Uid,
+      player2Uid,
+    },
+  });
+};
+
+
+  const handlePlayAgain = () => {
+    window.location.reload();
+  };
+
+  // --- Arrival menu ---
+  const renderArrivalMenu = () =>
+    createPortal(
+      <div
+        id="arrival-overlay"
+        className="fixed inset-0 flex flex-col justify-center items-center bg-black/80 backdrop-blur-sm z-[999999]"
+        style={{
+          position: "fixed",
+          top: -120,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          fontFamily: "'Press Start 2P', cursive",
+        }}
+      >
+        <div className="flex flex-col items-center text-center space-y-8">
+          <p
+            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+            onClick={handlePlayAgain}
+          >
+            🔁 Play Again
+          </p>
+          <p
+            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+            onClick={handleExit}
+          >
+            🏠 Exit to Main Menu
+          </p>
+        </div>
+      </div>,
+      document.body
+    );
+
+  // --- Pause menu ---
+  const renderMenu = () =>
+    createPortal(
+      <div
+        id="pause-overlay"
+        className="fixed inset-0 flex flex-col justify-center items-center bg-black/80 backdrop-blur-sm z-[999999]"
+        style={{
+          position: "fixed",
+          top: -120,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          fontFamily: "'Press Start 2P', cursive",
+        }}
+      >
+        <h2 className="text-5xl text-white font-extrabold mb-12 drop-shadow-lg text-center">
+          Game Paused
+        </h2>
+        <div className="flex flex-col items-center text-center space-y-8">
+          <p
+            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+            onClick={handleResume}
+          >
+            ▶ Resume
+          </p>
+          <p
+            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+            onClick={handleExit}
+          >
+            🏠 Exit to Main Menu
+          </p>
+        </div>
+      </div>,
+      document.body
+    );
+
+  if (!loaded)
+    return <div className="w-screen h-screen flex items-center justify-center bg-black text-white">Loading assets...</div>;
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-black relative" style={{ fontFamily: "'Press Start 2P', cursive" }} onClick={handleRepairClick}>
-      {/* Ground */}
-      <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${images.ground.src})`, backgroundRepeat: "repeat-x", backgroundSize: "auto 100%", backgroundPositionX: `${-offset}px`, zIndex: 1 }} />
-      {/* Station */}
-      <div style={{ position: "absolute", top: "28%", left: `${stationIndex * 300 - offset + 500}px`, transform: "translateY(-50%)", width: "200px", height: "auto", zIndex: 6 }}>
+    <div
+      className="w-screen h-screen overflow-hidden bg-black relative"
+      style={{ fontFamily: "'Press Start 2P', cursive" }}
+      onClick={handleRepairClick}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `url(${images.ground.src})`,
+          backgroundRepeat: "repeat-x",
+          backgroundSize: "auto 100%",
+          backgroundPositionX: `${-offset}px`,
+          zIndex: 1,
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "28%",
+          left: `${stationIndex * 300 - offset + 500}px`,
+          transform: "translateY(-50%)",
+          width: "200px",
+          height: "auto",
+          zIndex: 6,
+        }}
+      >
         <img src={images.station.src} alt="Station" style={{ width: "100%", height: "auto", pointerEvents: "none" }} />
       </div>
-      {/* Rails & Train */}
       <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", width: "100%", height: "100px", zIndex: 5 }}>
-        {renderTiles()}
+        {(() => {
+          const tileWidth = 300;
+          const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
+          const baseOffset = offset % tileWidth;
+          const leftmostIndex = Math.floor(offset / tileWidth);
+          const rightmostIndex = leftmostIndex + visibleTiles - 1;
+          if (lastVisibleIndexRef.current === null) lastVisibleIndexRef.current = rightmostIndex;
+          else if (rightmostIndex > lastVisibleIndexRef.current) {
+            newTileCounterRef.current++;
+            lastVisibleIndexRef.current = rightmostIndex;
+            if (!arrived && newTileCounterRef.current >= nextBreakAfterRef.current) {
+              breakTile(rightmostIndex);
+              newTileCounterRef.current = 0;
+              nextBreakAfterRef.current = 4 + Math.floor(Math.random() * 3);
+            }
+          }
+          const tiles = [];
+          for (let i = -1; i < visibleTiles - 1; i++) {
+            const idx = leftmostIndex + i;
+            const x = -baseOffset + i * tileWidth;
+            const isBroken = brokenTiles.has(idx);
+            tiles.push(
+              <div
+                key={`rail-${idx}`}
+                style={{
+                  position: "absolute",
+                  left: `${x}px`,
+                  top: 0,
+                  width: `${tileWidth}px`,
+                  height: "100%",
+                  backgroundImage: isBroken ? "none" : `url(${images.rail.src})`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: "100% 100%",
+                  pointerEvents: "none",
+                }}
+              />
+            );
+          }
+          return tiles;
+        })()}
         <img src={images.train.src} alt="Train" style={{ position: "absolute", bottom: "-3px", left: "0%", height: "104px", zIndex: 10, pointerEvents: "none" }} />
       </div>
-      {/* Player 1 */}
       <img
         src={isWalking ? images.walking.src : images.walkingStatic.src}
         alt="Player 1"
@@ -350,20 +628,29 @@ export default function GamePlay({ speed = 500 }) {
           pointerEvents: "none",
         }}
       />
-      {/* HUD */}
       <div className="absolute top-3 left-3 z-20 text-white bg-black/60 p-3 rounded" style={{ lineHeight: 1.7, left: "10px" }}>
-        <div className="text-sm">Player 1 : <span className="font-normal">{p1Name}</span></div>
-        <div className="text-sm mt-1">Player 2 : <span className="font-normal">{p2Name}</span></div>
+        <div className="text-sm">Player 1 : <span className="font-normal">{p1Name} - Score {p1Score}</span></div>
+        <div className="text-sm mt-1">Player 2 : <span className="font-normal">{p2Name} - Score {p2Score}</span></div>
       </div>
       {!isMoving && !stopped && !arrived && (
-        <p className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-white z-10">Player 2 : Use space button to move the train</p>
+        <p className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-white z-10">
+          Player 2 : Use space button to move the train
+        </p>
       )}
       {stopped && !arrived && (
-        <p className="absolute bottom-[65%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-red-400 z-20">🚧 Broken track! Player 1: Use arrow keys or click to repair!</p>
+        <p className="absolute bottom-[65%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-red-400 z-20">
+          🚧 Broken track! Player 1: Use arrow keys or click to repair!
+        </p>
       )}
       {arrived && (
-        <p className="absolute bottom-[30%] left-1/2 transform -translate-x-1/2 text-3xl text-green-400 animate-pulse z-20">🚂 Train has arrived at the station!</p>
+        <>
+          <p className="absolute bottom-[30%] left-1/2 transform -translate-x-1/2 text-3xl text-green-400 animate-pulse z-20">
+            🚂 Train has arrived at the station!
+          </p>
+          {renderArrivalMenu()}
+        </>
       )}
+      {showMenu && renderMenu()}
     </div>
   );
 }

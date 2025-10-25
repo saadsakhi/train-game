@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from "../firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseDB";
 
 export default function GameMenu() {
@@ -27,6 +27,52 @@ export default function GameMenu() {
 
     return () => unsubscribe();
   }, [navigate]);
+
+  useEffect(() => {
+  const startTime = Date.now();
+
+  const saveTimeSpent = async () => {
+    const endTime = Date.now();
+    const sessionTime = Math.floor((endTime - startTime) / 1000);
+
+    // Load previous unsaved time from localStorage
+    const prevTime = parseInt(localStorage.getItem("unsavedTime")) || 0;
+    const totalTime = prevTime + sessionTime;
+
+    // Save back to localStorage in case the user refreshes again
+    localStorage.setItem("unsavedTime", totalTime);
+
+    // Now update Firestore
+    try {
+      const updatePlayerTime = async (uid) => {
+        if (!uid) return;
+        const playerRef = doc(db, "users", uid);
+        const snap = await getDoc(playerRef);
+        const currentTime = snap.exists() ? snap.data().timeSpent ?? 0 : 0;
+        await updateDoc(playerRef, { timeSpent: currentTime + totalTime });
+      };
+
+      await Promise.all([
+        updatePlayerTime(player1Uid),
+        updatePlayerTime(player2Uid),
+      ]);
+
+      console.log(`🕒 Total time updated: ${totalTime}s`);
+      // Reset localStorage after successfully saving
+      localStorage.removeItem("unsavedTime");
+    } catch (err) {
+      console.error("❌ Failed to update timeSpent:", err);
+    }
+  };
+
+  // Save on unmount
+  window.addEventListener("beforeunload", saveTimeSpent);
+  return () => {
+    saveTimeSpent();
+    window.removeEventListener("beforeunload", saveTimeSpent);
+  };
+}, [player1Uid, player2Uid]);
+
 
   // ✅ Fetch player stats from Firebase
   useEffect(() => {
@@ -54,6 +100,19 @@ export default function GameMenu() {
     await signOut(auth);
     navigate("/"); // back to login
   };
+
+  const calculateLevel = (score) => {
+  let level = 0;
+  let threshold = 0;
+
+  while (score >= threshold) {
+    level++;
+    threshold += level * 1000;
+  }
+
+  return level - 1; // last increment exceeds score
+};
+
 
   // ✅ Go to gameplay screen
   const handlePlay = () => {
@@ -86,26 +145,41 @@ export default function GameMenu() {
     </div>
   );
 
-  const renderStats = (stats, playerLabel) => (
-    <div className="flex flex-col items-center gap-4 bg-black/70 text-white px-8 py-6 rounded-xl shadow-xl text-center">
-      <h2 className="text-2xl font-bold mb-3">{playerLabel} Stats</h2>
-      {stats ? (
-        <>
-          <p>👾 Username: {stats.username}</p>
-          <p>🏆 Score: {stats.score ?? 0}</p>
-          <p>⏱️ Time Spent: {stats.timeSpent ?? 0} sec</p>
-        </>
-      ) : (
-        <p>Loading...</p>
-      )}
-      <p
-        className="mt-6 text-xl cursor-pointer hover:scale-125 transition-transform text-indigo-400 hover:text-indigo-300"
-        onClick={() => setView("menu")}
-      >
-        ← Back to Menu
-      </p>
-    </div>
-  );
+  // Helper function
+const formatTime = (seconds) => {
+  if (!seconds) return "0 sec";
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  let result = "";
+  if (hrs > 0) result += `${hrs} hr${hrs > 1 ? "s" : ""} `;
+  if (mins > 0) result += `${mins} min `;
+  if (secs > 0 || result === "") result += `${secs} sec`;
+  return result.trim();
+};
+
+const renderStats = (stats, playerLabel) => (
+  <div className="flex flex-col items-center gap-4 bg-black/70 text-white px-8 py-6 rounded-xl shadow-xl text-center">
+    <h2 className="text-2xl font-bold mb-3">{playerLabel} Stats</h2>
+    {stats ? (
+      <>
+        <p>👾 Username: {stats.username}</p>
+        <p>🏆 Score: {stats.score ?? 0}</p>
+        <p>🧩 Level: {calculateLevel(stats.score ?? 0)}</p>
+        <p>⏱️ Time Spent: {formatTime(stats.timeSpent)}</p>
+      </>
+    ) : (
+      <p>Loading...</p>
+    )}
+    <p
+      className="mt-6 text-xl cursor-pointer hover:scale-125 transition-transform text-indigo-400 hover:text-indigo-300"
+      onClick={() => setView("menu")}
+    >
+      ← Back to Menu
+    </p>
+  </div>
+);
+
 
   return (
     <div
