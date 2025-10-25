@@ -40,6 +40,9 @@ export default function GamePlay({ speed = 500 }) {
 
   const [repairingTile, setRepairingTile] = useState(null);
   const repairStartPosRef = useRef({ x: 0, y: 0 });
+  const [repairingGif, setRepairingGif] = useState(false);
+  const repairGifPosRef = useRef({ x: 0, y: 0 }); // store position to freeze
+
 
   // --- Prevent zoom ---
   useEffect(() => {
@@ -78,8 +81,8 @@ export default function GamePlay({ speed = 500 }) {
     rail.src = "/assets/railway.png";
     train.src = "/assets/train.png";
     station.src = "/assets/station.png";
-    walking.src = "/assets/walking.gif";
-    walkingStatic.src = "/assets/walking.png";
+    walking.src = "/assets/gif1.gif";
+    walkingStatic.src = "/assets/gif.PNG";
     [ground, rail, train, station, walking, walkingStatic].forEach((img) => (img.onload = handleLoad));
   }, []);
 
@@ -248,71 +251,90 @@ export default function GamePlay({ speed = 500 }) {
     return null;
   };
 
-  const handleRepairClick = (e) => {
-    if (repairingTile || showMenu) return;
-    const target = isClickOnGap(e);
-    if (!target) return;
-    const tileWidth = 300;
-    const tileLeft = target.xPos;
-    const tileRight = tileLeft + tileWidth;
-    const playerWidth = 50;
-    const playerLeft = player1Pos.x;
-    const playerRight = player1Pos.x + playerWidth;
-    const isInsideBrokenArea = playerRight >= tileLeft && playerLeft <= tileRight;
-    if (!isInsideBrokenArea) return console.log("You need to stand on the broken rail to repair it!");
+const handleRepairClick = (e) => {
+  if (repairingTile || showMenu) return;
+  const target = isClickOnGap(e);
+  if (!target) return;
+
+  const tileWidth = 300;
+  const tileLeft = target.xPos;
+  const tileRight = tileLeft + tileWidth;
+  const playerWidth = 50;
+  const playerLeft = player1Pos.x;
+  const playerRight = player1Pos.x + playerWidth;
+  const isInsideBrokenArea = playerRight >= tileLeft && playerLeft <= tileRight;
+  if (!isInsideBrokenArea) return console.log("You need to stand on the broken rail to repair it!");
+
+  // Lock player position for GIF
+  repairGifPosRef.current = { ...player1Pos };
+  setRepairingGif(true);
+
+  // Play GIF for ~2s
+  setTimeout(() => {
+    setRepairingGif(false);
+    // Start the repair animation AFTER GIF finishes
     setRepairingTile({ ...target, returning: false });
     repairStartPosRef.current = { ...initialPosRef.current };
     setIsWalking(true);
+  }, 7000);
+};
+
+
+
+useEffect(() => {
+  if (!repairingTile) return;
+  let animId;
+
+  const animate = () => {
+    setPlayer1Pos((pos) => {
+      const speed = 8;
+      let targetX, targetY;
+
+      if (!repairingTile.returning) {
+        targetX = repairingTile.xPos;
+        targetY = window.innerHeight / 2 + 120; // repair position
+      } else {
+        targetX = repairStartPosRef.current.x;
+        targetY = repairStartPosRef.current.y;
+      }
+
+      const dx = targetX - pos.x;
+      const dy = targetY - pos.y;
+
+      // Player reached target
+      if (Math.abs(dx) <= speed && Math.abs(dy) <= speed) {
+        if (!repairingTile.returning) {
+          // ✅ Repair immediately
+          const updated = new Set(brokenTilesRef.current);
+          updated.delete(repairingTile.idx);
+          brokenTilesRef.current = updated;
+          setBrokenTiles(updated);
+
+          setP1Score((s) => s + 50);
+          setP2Score((s) => s + 50);
+
+          setRepairingTile({ ...repairingTile, returning: true });
+          return pos; // keep player at repair position for one frame
+        } else {
+          setStopped(false);
+          setIsWalking(false);
+          setRepairingTile(null);
+          return { ...initialPosRef.current };
+        }
+      }
+
+      return { x: pos.x + Math.sign(dx) * speed, y: pos.y + Math.sign(dy) * speed };
+    });
+
+    animId = requestAnimationFrame(animate);
   };
 
-  // --- Animate repair ---
-  useEffect(() => {
-    if (!repairingTile) return;
-    let animId;
-    const animate = () => {
-      setPlayer1Pos((pos) => {
-        const speed = 8;
-        let targetX, targetY;
-        if (!repairingTile.returning) {
-          if (pos.y < window.innerHeight / 2 + 120) {
-            targetY = window.innerHeight / 2 + 120;
-            targetX = pos.x;
-          } else {
-            targetY = pos.y;
-            targetX = repairingTile.xPos;
-          }
-        } else {
-          targetX = repairStartPosRef.current.x;
-          targetY = repairStartPosRef.current.y;
-        }
-        const dx = targetX - pos.x;
-        const dy = targetY - pos.y;
-        if (Math.abs(dx) <= speed && Math.abs(dy) <= speed) {
-          if (!repairingTile.returning) {
-            const updated = new Set(brokenTilesRef.current);
-            updated.delete(repairingTile.idx);
-            brokenTilesRef.current = updated;
-            setBrokenTiles(updated);
-            setRepairingTile({ ...repairingTile, returning: true });
+  animId = requestAnimationFrame(animate);
+  return () => cancelAnimationFrame(animId);
+}, [repairingTile]);
 
-            setP1Score((s) => s + 50);
-            setP2Score((s) => s + 50);
 
-            return pos;
-          } else {
-            setStopped(false);
-            setIsWalking(false);
-            setRepairingTile(null);
-            return { ...initialPosRef.current };
-          }
-        }
-        return { x: pos.x + Math.sign(dx) * speed, y: pos.y + Math.sign(dy) * speed };
-      });
-      if (repairingTile) animId = requestAnimationFrame(animate);
-    };
-    animId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animId);
-  }, [repairingTile]);
+
 
   // --- Update player score after game ends ---
   const updateScoresInDB = async () => {
@@ -613,21 +635,23 @@ useEffect(() => {
         })()}
         <img src={images.train.src} alt="Train" style={{ position: "absolute", bottom: "-3px", left: "0%", height: "104px", zIndex: 10, pointerEvents: "none" }} />
       </div>
-      <img
-        src={isWalking ? images.walking.src : images.walkingStatic.src}
-        alt="Player 1"
-        style={{
-          position: "absolute",
-          left: `${player1Pos.x}px`,
-          top: `${player1Pos.y}px`,
-          height: "80px",
-          width: "auto",
-          zIndex: 20,
-          transition: "transform 0.1s",
-          transform: isWalking ? "scale(1.05)" : "scale(1)",
-          pointerEvents: "none",
-        }}
-      />
+        <img
+          src={repairingGif ? "/assets/gif2.gif" : isWalking ? images.walking.src : images.walkingStatic.src}
+          alt="Player 1"
+          style={{
+            position: "absolute",
+            left: `${repairingGif ? repairGifPosRef.current.x : player1Pos.x}px`,
+            top: `${repairingGif ? repairGifPosRef.current.y : player1Pos.y}px`,
+            height: "120px",
+            width: "auto",
+            zIndex: 20,
+            transition: "transform 0.1s",
+            transform: isWalking ? "scale(1.05)" : "scale(1)",
+            pointerEvents: "none",
+          }}
+        />
+
+
       <div className="absolute top-3 left-3 z-20 text-white bg-black/60 p-3 rounded" style={{ lineHeight: 1.7, left: "10px" }}>
         <div className="text-sm">Player 1 : <span className="font-normal">{p1Name} - Score {p1Score}</span></div>
         <div className="text-sm mt-1">Player 2 : <span className="font-normal">{p2Name} - Score {p2Score}</span></div>
