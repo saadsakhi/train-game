@@ -26,14 +26,12 @@ export default function Login() {
 
   useEffect(() => {
     if (player1Status === "logged_in" && player2Status === "logged_in") {
-      // Redirect to game menu page when both players are logged in
       navigate("/game", { state: { player1Uid, player2Uid } });
     }
   }, [player1Status, player2Status, navigate, player1Uid, player2Uid]);
 
   const fakeEmail = (username) => `${username}@trainbridge.com`;
 
-  // Player 1 Handlers
   const handleP1Login = async () => {
     if (!p1Username || !p1Password) return setPlayer1Error("Please fill all fields");
     try {
@@ -62,7 +60,6 @@ export default function Login() {
     }
   };
 
-  // Player 2 Handlers
   const handleP2Login = async () => {
     if (!p2Username || !p2Password) return setPlayer2Error("Please fill all fields");
     try {
@@ -91,11 +88,47 @@ export default function Login() {
     }
   };
 
-  // Button classes
-  const loginBtn =
-    "inline-block rounded-sm border border-indigo-600 bg-indigo-600 px-12 py-3 text-sm font-medium text-white hover:bg-transparent hover:text-indigo-600 focus:ring-3 focus:outline-none mb-2";
-  const toggleBtn =
-    "inline-block rounded-sm border border-indigo-600 px-12 py-3 text-sm font-medium text-indigo-600 hover:bg-indigo-600 hover:text-white focus:ring-3 focus:outline-none";
+  const loginBtn = `
+  inline-block
+  rounded-sm
+  bg-indigo-600
+  px-8
+  py-3
+  text-sm
+  font-medium
+  text-white
+  transition
+  hover:scale-110
+  hover:shadow-xl
+  focus:ring-3
+  focus:outline-hidden
+`;
+
+const toggleBtn = `
+  inline-block
+  rounded-sm
+  border
+  border-current
+  px-8
+  py-3
+  text-sm
+  font-medium
+  text-indigo-600
+  transition
+  hover:scale-110
+  hover:shadow-xl
+  focus:ring-3
+  focus:outline-hidden
+`;
+
+
+  const inputClass =
+    "w-full max-w-[200px] box-border rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black";
+
+  const errorClass = "text-red-500 mb-3 text-[14px]";
+
+
+  const labelClass = "text-xs font-medium text-gray-700 mb-1";
 
   return (
     <div
@@ -109,70 +142,68 @@ export default function Login() {
     >
       <div className="absolute inset-0 bg-black/40 z-0"></div>
 
-      <h1
-        className="absolute top-[10%] text-6xl font-extrabold z-10"
-        style={{ fontFamily: "'Press Start 2P', cursive" }}
-      >
+      <h1 className="absolute top-[10%] text-6xl font-extrabold z-10">
         Train and the Bridge
       </h1>
 
-      <div className="z-10 flex justify-between w-3/4 mx-auto">
+      <div className="z-10 flex justify-between w-3/4 mx-auto gap-6">
         {/* Player 1 */}
-        <div className="w-64 p-6 bg-white rounded-lg flex flex-col items-center shadow-lg">
+        <div className="w-64 p-6 bg-white rounded-lg flex flex-col items-start shadow-lg">
           {player1Status !== "logged_in" ? (
             <>
               <h2 className="text-xl mb-6 text-black">Player 1 (Bridge)</h2>
-              <label htmlFor="p1Username" className="w-full mb-8">
-                <span className="text-xs font-medium text-gray-700">Username</span>
-                <input
-                  type="text"
-                  id="p1Username"
-                  className="mt-1 w-full rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black"
-                  value={p1Username}
-                  onChange={(e) => setP1Username(e.target.value)}
-                />
-              </label>
-              <label htmlFor="p1Password" className="w-full mb-8">
-                <span className="text-xs font-medium text-gray-700">Password</span>
-                <input
-                  type="password"
-                  id="p1Password"
-                  className="mt-1 w-full rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black"
-                  value={p1Password}
-                  onChange={(e) => setP1Password(e.target.value)}
-                />
-              </label>
-              {player1Mode === "register" && (
-                <label htmlFor="p1Confirm" className="w-full mb-8">
-                  <span className="text-xs font-medium text-gray-700">Confirm Password</span>
+              <div className="flex flex-col items-start space-y-4 w-full " >
+                <div>
+                  <span className={labelClass}>Username</span>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={p1Username}
+                    onChange={(e) => setP1Username(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelClass}>Password</span>
                   <input
                     type="password"
-                    id="p1Confirm"
-                    className="mt-1 w-full rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black"
-                    value={p1Confirm}
-                    onChange={(e) => setP1Confirm(e.target.value)}
+                    className={inputClass}
+                    value={p1Password}
+                    onChange={(e) => setP1Password(e.target.value)}
                   />
-                </label>
-              )}
-              <p className="text-red-500 mb-3 text-sm">{player1Error}</p>
-              <button
-                className={loginBtn}
-                onClick={() => {
-                  if (p1Username === p2Username && player2Status === "logged_in") {
-                    setPlayer1Error("Cannot use the same username as Player 2");
-                    return;
-                  }
-                  player1Mode === "login" ? handleP1Login() : handleP1Register();
-                }}
-              >
-                {player1Mode === "login" ? "Login" : "Register"}
-              </button>
-              <button
-                className={toggleBtn}
-                onClick={() => setPlayer1Mode(player1Mode === "login" ? "register" : "login")}
-              >
-                {player1Mode === "login" ? "Register instead" : "Back to login"}
-              </button>
+                </div>
+                {player1Mode === "register" && (
+                  <div>
+                    <span className={labelClass}>Confirm Password</span>
+                    <input
+                      type="password"
+                      className={inputClass}
+                      value={p1Confirm}
+                      onChange={(e) => setP1Confirm(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+              <p className={errorClass}>{player1Error}</p>
+            <button
+              className={loginBtn}
+              onClick={() => {
+                if (p1Username === p2Username && player2Status === "logged_in") {
+                  setPlayer1Error("Cannot use the same username as Player 2");
+                  return;
+                }
+                player1Mode === "login" ? handleP1Login() : handleP1Register();
+              }}
+            >
+              {player1Mode === "login" ? "Login" : "Register"}
+            </button>
+            <button
+              className={toggleBtn}
+              style={{ marginTop: "12px" }} // space between buttons
+              onClick={() => setPlayer1Mode(player1Mode === "login" ? "register" : "login")}
+            >
+              {player1Mode === "login" ? "Register instead" : "Back to login"}
+            </button>
+
             </>
           ) : (
             <div className="w-full h-40 flex items-center justify-center bg-white text-black font-bold rounded">
@@ -182,61 +213,62 @@ export default function Login() {
         </div>
 
         {/* Player 2 */}
-        <div className="w-64 p-6 bg-white rounded-lg flex flex-col items-center shadow-lg">
+        <div className="w-64 p-6 bg-white rounded-lg flex flex-col items-start shadow-lg">
           {player2Status !== "logged_in" ? (
             <>
               <h2 className="text-xl mb-6 text-black">Player 2 (Train)</h2>
-              <label htmlFor="p2Username" className="w-full mb-8">
-                <span className="text-xs font-medium text-gray-700">Username</span>
-                <input
-                  type="text"
-                  id="p2Username"
-                  className="mt-1 w-full rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black"
-                  value={p2Username}
-                  onChange={(e) => setP2Username(e.target.value)}
-                />
-              </label>
-              <label htmlFor="p2Password" className="w-full mb-8">
-                <span className="text-xs font-medium text-gray-700">Password</span>
-                <input
-                  type="password"
-                  id="p2Password"
-                  className="mt-1 w-full rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black"
-                  value={p2Password}
-                  onChange={(e) => setP2Password(e.target.value)}
-                />
-              </label>
-              {player2Mode === "register" && (
-                <label htmlFor="p2Confirm" className="w-full mb-8">
-                  <span className="text-xs font-medium text-gray-700">Confirm Password</span>
+              <div className="flex flex-col items-start space-y-4 w-full">
+                <div>
+                  <span className={labelClass}>Username</span>
+                  <input
+                    type="text"
+                    className={inputClass}
+                    value={p2Username}
+                    onChange={(e) => setP2Username(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className={labelClass}>Password</span>
                   <input
                     type="password"
-                    id="p2Confirm"
-                    className="mt-1 w-full rounded border border-gray-300 shadow-sm text-xs p-1.5 text-black"
-                    value={p2Confirm}
-                    onChange={(e) => setP2Confirm(e.target.value)}
+                    className={inputClass}
+                    value={p2Password}
+                    onChange={(e) => setP2Password(e.target.value)}
                   />
-                </label>
-              )}
-              <p className="text-red-500 mb-3 text-sm">{player2Error}</p>
-              <button
-                className={loginBtn}
-                onClick={() => {
-                  if (p2Username === p1Username && player1Status === "logged_in") {
-                    setPlayer2Error("Cannot use the same username as Player 1");
-                    return;
-                  }
-                  player2Mode === "login" ? handleP2Login() : handleP2Register();
-                }}
-              >
-                {player2Mode === "login" ? "Login" : "Register"}
-              </button>
-              <button
-                className={toggleBtn}
-                onClick={() => setPlayer2Mode(player2Mode === "login" ? "register" : "login")}
-              >
-                {player2Mode === "login" ? "Register instead" : "Back to login"}
-              </button>
+                </div>
+                {player2Mode === "register" && (
+                  <div>
+                    <span className={labelClass}>Confirm Password</span>
+                    <input
+                      type="password"
+                      className={inputClass}
+                      value={p2Confirm}
+                      onChange={(e) => setP2Confirm(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+              <p className={errorClass}>{player2Error}</p>
+            <button
+              className={loginBtn}
+              onClick={() => {
+                if (p2Username === p1Username && player1Status === "logged_in") {
+                  setPlayer2Error("Cannot use the same username as Player 1");
+                  return;
+                }
+                player2Mode === "login" ? handleP2Login() : handleP2Register();
+              }}
+            >
+              {player2Mode === "login" ? "Login" : "Register"}
+            </button>
+            <button
+              className={toggleBtn}
+              style={{ marginTop: "12px" }} // space between buttons
+              onClick={() => setPlayer2Mode(player2Mode === "login" ? "register" : "login")}
+            >
+              {player2Mode === "login" ? "Register instead" : "Back to login"}
+            </button>
+
             </>
           ) : (
             <div className="w-full h-40 flex items-center justify-center bg-white text-black font-bold rounded">

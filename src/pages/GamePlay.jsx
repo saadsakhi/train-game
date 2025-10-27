@@ -42,6 +42,8 @@ export default function GamePlay({ speed = 500 }) {
   const repairStartPosRef = useRef({ x: 0, y: 0 });
   const [repairingGif, setRepairingGif] = useState(false);
   const repairGifPosRef = useRef({ x: 0, y: 0 }); // store position to freeze
+  const bgMusicRef = useRef(null);
+  const hasStartedRef = useRef(false);
 
 
   // --- Prevent zoom ---
@@ -80,7 +82,7 @@ export default function GamePlay({ speed = 500 }) {
     ground.src = "/assets/ground111.png";
     rail.src = "/assets/railway.png";
     train.src = "/assets/train.png";
-    station.src = "/assets/station.png";
+    station.src = "/assets/stationn.png";
     walking.src = "/assets/gif1.gif";
     walkingStatic.src = "/assets/gif.PNG";
     [ground, rail, train, station, walking, walkingStatic].forEach((img) => (img.onload = handleLoad));
@@ -103,6 +105,86 @@ export default function GamePlay({ speed = 500 }) {
     return () => { mounted = false; };
   }, [player1Uid, player2Uid]);
 
+useEffect(() => {
+  bgMusicRef.current = new Audio("/assets/gameplay.mp3");
+  bgMusicRef.current.loop = true;
+  bgMusicRef.current.volume = 0.7;
+
+  const playMusic = async () => {
+    try {
+      await bgMusicRef.current.play();
+      console.log("🎵 Background music started automatically");
+    } catch (e) {
+      console.warn("Background music blocked — waiting for user interaction:", e);
+      // fallback: play once user interacts
+      const resumeMusic = () => {
+        bgMusicRef.current.play().catch((err) => console.warn("Still blocked:", err));
+        window.removeEventListener("click", resumeMusic);
+        window.removeEventListener("keydown", resumeMusic);
+      };
+      window.addEventListener("click", resumeMusic, { once: true });
+      window.addEventListener("keydown", resumeMusic, { once: true });
+    }
+  };
+
+  playMusic();
+
+  return () => {
+    if (bgMusicRef.current) {
+      bgMusicRef.current.pause();
+      bgMusicRef.current.currentTime = 0;
+    }
+    window.removeEventListener("click", playMusic);
+    window.removeEventListener("keydown", playMusic);
+  };
+}, []);
+
+
+  // --- Walking sound effect ---
+useEffect(() => {
+  if (repairingGif) return; // Don't play walking sound while repairing
+
+  let walkingAudio;
+
+  if (isWalking) {
+    walkingAudio = new Audio("/assets/truck.mp3");
+    walkingAudio.loop = true;
+    walkingAudio.volume = 1; // adjust volume if needed
+    walkingAudio.play().catch((e) => console.warn("Walking sound blocked:", e));
+  }
+
+  return () => {
+    if (walkingAudio) {
+      walkingAudio.pause();
+      walkingAudio.currentTime = 0;
+    }
+  };
+}, [isWalking, repairingGif]);
+
+
+  useEffect(() => {
+  let audio;
+
+  if (repairingGif) {
+    audio = new Audio("/assets/construction.mp3");
+    audio.volume = 0.4; // adjust if needed
+    audio.play().catch((e) => console.warn("Audio play blocked:", e));
+
+    // Stop sound automatically after the GIF ends (2s)
+    const stopTimeout = setTimeout(() => {
+      audio.pause();
+      audio.currentTime = 0;
+    }, 7000);
+
+    return () => {
+      clearTimeout(stopTimeout);
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }
+}, [repairingGif]);
+
+
   const breakTile = (logicalIndex) => {
     if (arrived) return;
     if (Math.abs(logicalIndex - stationIndex) < 3) return;
@@ -110,17 +192,6 @@ export default function GamePlay({ speed = 500 }) {
     setBrokenTiles(new Set(brokenTilesRef.current));
   };
 
-  const fetchPlayerScore = async (uid, setScore) => {
-    if (!uid) return setScore(0);
-    try {
-      const d = await getDoc(doc(db, "users", uid));
-      if (d.exists()) setScore(d.data().score ?? 0);
-      else setScore(0);
-    } catch (err) {
-      console.error("❌ Failed to fetch score:", err);
-      setScore(0);
-    }
-  };
 
   // --- Train control ---
   useEffect(() => {
@@ -189,6 +260,24 @@ export default function GamePlay({ speed = 500 }) {
       };
     }
   }, [stopped, arrived, repairingTile, showMenu]);
+
+  useEffect(() => {
+  let audio;
+
+  if (isMoving && !stopped && !arrived && !showMenu) {
+    audio = new Audio("/assets/train.mp3");
+    audio.loop = true; // train keeps playing as long as it’s moving
+    audio.volume = 0.3; // adjust if needed
+    audio.play().catch((e) => console.warn("Train sound blocked:", e));
+  }
+
+  return () => {
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  };
+}, [isMoving, stopped, arrived, showMenu]);
 
   // --- Train movement ---
   useEffect(() => {
@@ -491,37 +580,39 @@ useEffect(() => {
   };
 
   // --- Arrival menu ---
-  const renderArrivalMenu = () =>
-    createPortal(
-      <div
-        id="arrival-overlay"
-        className="fixed inset-0 flex flex-col justify-center items-center bg-black/80 backdrop-blur-sm z-[999999]"
-        style={{
-          position: "fixed",
-          top: -120,
-          left: 0,
-          width: "100vw",
-          height: "100vh",
-          fontFamily: "'Press Start 2P', cursive",
-        }}
-      >
-        <div className="flex flex-col items-center text-center space-y-8">
-          <p
-            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
-            onClick={handlePlayAgain}
-          >
-            🔁 Play Again
-          </p>
-          <p
-            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
-            onClick={handleExit}
-          >
-            🏠 Exit to Main Menu
-          </p>
-        </div>
-      </div>,
-      document.body
-    );
+ const renderArrivalMenu = () =>
+  createPortal(
+    <div
+      id="arrival-overlay"
+      className="fixed inset-0 flex flex-col justify-center items-start bg-black/80 backdrop-blur-sm z-[999999]"
+      style={{
+        position: "fixed",
+        top: -120,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        fontFamily: "'Press Start 2P', cursive",
+        paddingLeft: "10px", // 👈 adjust this to move further/closer from the left
+      }}
+    >
+      <div className="flex flex-col text-left space-y-8">
+        <p
+          className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          onClick={handlePlayAgain}
+        >
+          🔁 Play Again
+        </p>
+        <p
+          className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          onClick={handleExit}
+        >
+          🏠 Exit to Main Menu
+        </p>
+      </div>
+    </div>,
+    document.body
+  );
+
 
   // --- Pause menu ---
   const renderMenu = () =>
@@ -531,8 +622,8 @@ useEffect(() => {
         className="fixed inset-0 flex flex-col justify-center items-center bg-black/80 backdrop-blur-sm z-[999999]"
         style={{
           position: "fixed",
-          top: -120,
-          left: 0,
+          top: -140,
+          left: -600,
           width: "100vw",
           height: "100vh",
           fontFamily: "'Press Start 2P', cursive",
@@ -583,14 +674,14 @@ useEffect(() => {
         style={{
           position: "absolute",
           top: "28%",
-          left: `${stationIndex * 300 - offset + 500}px`,
+          left: `${stationIndex * 300 - offset + 100}px`,
           transform: "translateY(-50%)",
-          width: "200px",
+          width: "350px",
           height: "auto",
           zIndex: 6,
         }}
       >
-        <img src={images.station.src} alt="Station" style={{ width: "100%", height: "auto", pointerEvents: "none" }} />
+        <img src={images.station.src} alt="Station" style={{ width: "100%", height: "auto", pointerEvents: "none", userSelect: "none" }} />
       </div>
       <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", width: "100%", height: "100px", zIndex: 5 }}>
         {(() => {
@@ -614,26 +705,69 @@ useEffect(() => {
             const idx = leftmostIndex + i;
             const x = -baseOffset + i * tileWidth;
             const isBroken = brokenTiles.has(idx);
-            tiles.push(
-              <div
-                key={`rail-${idx}`}
-                style={{
-                  position: "absolute",
-                  left: `${x}px`,
-                  top: 0,
-                  width: `${tileWidth}px`,
-                  height: "100%",
-                  backgroundImage: isBroken ? "none" : `url(${images.rail.src})`,
-                  backgroundRepeat: "no-repeat",
-                  backgroundSize: "100% 100%",
-                  pointerEvents: "none",
-                }}
-              />
-            );
+tiles.push(
+  <div key={`rail-${idx}`} style={{ position: "absolute", left: `${x}px`, top: 0, width: `${tileWidth}px`, height: "100%" }}>
+    {!isBroken ? (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          backgroundImage: `url(${images.rail.src})`,
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "100% 100%",
+          pointerEvents: "none",
+        }}
+      />
+    ) : (
+      <>
+        {/* Broken tile gap */}
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            background: "transparent",
+            pointerEvents: "none",
+          }}
+        />
+        {/* Broken railway picture overlay */}
+        <img
+          src="/assets/broken railway.png"
+          alt="Broken Rail"
+          style={{
+            position: "absolute",
+            top: "110px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "120px",
+            height: "auto",
+            zIndex: 7,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        />
+      </>
+    )}
+  </div>
+);
+
           }
           return tiles;
         })()}
-        <img src={images.train.src} alt="Train" style={{ position: "absolute", bottom: "-3px", left: "0%", height: "104px", zIndex: 10, pointerEvents: "none" }} />
+        <img
+          src={images.train.src}
+          alt="Train"
+          draggable="false"
+          style={{
+            position: "absolute",
+            bottom: "-3px",
+            left: "0%",
+            height: "104px",
+            zIndex: 10,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        />
+
       </div>
         <img
           src={repairingGif ? "/assets/gif2.gif" : isWalking ? images.walking.src : images.walkingStatic.src}
@@ -648,6 +782,7 @@ useEffect(() => {
             transition: "transform 0.1s",
             transform: isWalking ? "scale(1.05)" : "scale(1)",
             pointerEvents: "none",
+            userSelect: "none",
           }}
         />
 
@@ -655,6 +790,7 @@ useEffect(() => {
       <div className="absolute top-3 left-3 z-20 text-white bg-black/60 p-3 rounded" style={{ lineHeight: 1.7, left: "10px" }}>
         <div className="text-sm">Player 1 : <span className="font-normal">{p1Name} - Score {p1Score}</span></div>
         <div className="text-sm mt-1">Player 2 : <span className="font-normal">{p2Name} - Score {p2Score}</span></div>
+        <div className="text-sm mt-4" style={{ marginTop: "40px" }}>Click ESC to pause the game </div>
       </div>
       {!isMoving && !stopped && !arrived && (
         <p className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-white z-10">
@@ -663,7 +799,7 @@ useEffect(() => {
       )}
       {stopped && !arrived && (
         <p className="absolute bottom-[65%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-red-400 z-20">
-          🚧 Broken track! Player 1: Use arrow keys or click to repair!
+          🚧 Track damaged! Use arrows to reach it, then click to repair!
         </p>
       )}
       {arrived && (

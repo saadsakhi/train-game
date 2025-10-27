@@ -46,6 +46,17 @@ export default function Home() {
       >
         Press any key or click to start
       </p>
+      <p
+        className="absolute bottom-[14%] text-sm z-10"
+        style={{
+          fontFamily: "'Press Start 2P', cursive",
+          fontSize: "11px",   
+          left: "50%",         
+          transform: "translateX(-50%)",
+        }}
+>
+        Developed By Saad Sakhi
+      </p>
     </div>
   );
 }
