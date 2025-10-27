@@ -41,12 +41,12 @@ export default function GamePlay({ speed = 500 }) {
   const [repairingTile, setRepairingTile] = useState(null);
   const repairStartPosRef = useRef({ x: 0, y: 0 });
   const [repairingGif, setRepairingGif] = useState(false);
-  const repairGifPosRef = useRef({ x: 0, y: 0 }); // store position to freeze
+  const repairGifPosRef = useRef({ x: 0, y: 0 }); 
   const bgMusicRef = useRef(null);
   const hasStartedRef = useRef(false);
 
 
-  // --- Prevent zoom ---
+
   useEffect(() => {
     const preventZoomKeys = (e) => {
       if ((e.ctrlKey && ["+", "-", "="].includes(e.key)) || e.key === "Meta") e.preventDefault();
@@ -65,7 +65,7 @@ export default function GamePlay({ speed = 500 }) {
     };
   }, []);
 
-  // --- Preload images ---
+  
   useEffect(() => {
     const ground = new Image();
     const rail = new Image();
@@ -88,7 +88,6 @@ export default function GamePlay({ speed = 500 }) {
     [ground, rail, train, station, walking, walkingStatic].forEach((img) => (img.onload = handleLoad));
   }, []);
 
-  // --- Fetch player names ---
   useEffect(() => {
     let mounted = true;
     const fetchName = async (uid, setName) => {
@@ -113,12 +112,9 @@ useEffect(() => {
   const playMusic = async () => {
     try {
       await bgMusicRef.current.play();
-      console.log("🎵 Background music started automatically");
     } catch (e) {
-      console.warn("Background music blocked — waiting for user interaction:", e);
-      // fallback: play once user interacts
       const resumeMusic = () => {
-        bgMusicRef.current.play().catch((err) => console.warn("Still blocked:", err));
+        bgMusicRef.current.play().catch(() => {});
         window.removeEventListener("click", resumeMusic);
         window.removeEventListener("keydown", resumeMusic);
       };
@@ -126,6 +122,7 @@ useEffect(() => {
       window.addEventListener("keydown", resumeMusic, { once: true });
     }
   };
+
 
   playMusic();
 
@@ -140,18 +137,19 @@ useEffect(() => {
 }, []);
 
 
-  // --- Walking sound effect ---
+
 useEffect(() => {
-  if (repairingGif) return; // Don't play walking sound while repairing
+  if (repairingGif) return;
 
   let walkingAudio;
 
-  if (isWalking) {
-    walkingAudio = new Audio("/assets/truck.mp3");
-    walkingAudio.loop = true;
-    walkingAudio.volume = 1; // adjust volume if needed
-    walkingAudio.play().catch((e) => console.warn("Walking sound blocked:", e));
-  }
+    if (isWalking) {
+      walkingAudio = new Audio("/assets/truck.mp3");
+      walkingAudio.loop = true;
+      walkingAudio.volume = 1;
+      walkingAudio.play().catch(() => {});
+    }
+
 
   return () => {
     if (walkingAudio) {
@@ -165,12 +163,12 @@ useEffect(() => {
   useEffect(() => {
   let audio;
 
-  if (repairingGif) {
-    audio = new Audio("/assets/construction.mp3");
-    audio.volume = 0.4; // adjust if needed
-    audio.play().catch((e) => console.warn("Audio play blocked:", e));
+    if (repairingGif) {
+      audio = new Audio("/assets/construction.mp3");
+      audio.volume = 0.4;
+      audio.play().catch(() => {});
 
-    // Stop sound automatically after the GIF ends (2s)
+    
     const stopTimeout = setTimeout(() => {
       audio.pause();
       audio.currentTime = 0;
@@ -193,7 +191,6 @@ useEffect(() => {
   };
 
 
-  // --- Train control ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === "Space" && !stopped && !arrived && !showMenu) {
@@ -215,7 +212,6 @@ useEffect(() => {
     };
   }, [stopped, arrived, showMenu]);
 
-  // --- ESC menu toggle ---
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") {
@@ -227,7 +223,6 @@ useEffect(() => {
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
 
-  // --- Player movement ---
   const pressedKeysRef = useRef(new Set());
   useEffect(() => {
     if (stopped && !arrived && !repairingTile && !showMenu) {
@@ -266,9 +261,9 @@ useEffect(() => {
 
   if (isMoving && !stopped && !arrived && !showMenu) {
     audio = new Audio("/assets/train.mp3");
-    audio.loop = true; // train keeps playing as long as it’s moving
-    audio.volume = 0.3; // adjust if needed
-    audio.play().catch((e) => console.warn("Train sound blocked:", e));
+    audio.loop = true; 
+    audio.volume = 0.3; 
+    audio.play().catch(() => {});
   }
 
   return () => {
@@ -279,7 +274,6 @@ useEffect(() => {
   };
 }, [isMoving, stopped, arrived, showMenu]);
 
-  // --- Train movement ---
   useEffect(() => {
     if (!loaded || stopped || !isMoving || arrived || showMenu) return;
     const step = (time) => {
@@ -352,21 +346,19 @@ const handleRepairClick = (e) => {
   const playerLeft = player1Pos.x;
   const playerRight = player1Pos.x + playerWidth;
   const isInsideBrokenArea = playerRight >= tileLeft && playerLeft <= tileRight;
-  if (!isInsideBrokenArea) return console.log("You need to stand on the broken rail to repair it!");
+  if (!isInsideBrokenArea) return;
 
-  // Lock player position for GIF
   repairGifPosRef.current = { ...player1Pos };
   setRepairingGif(true);
 
-  // Play GIF for ~2s
   setTimeout(() => {
     setRepairingGif(false);
-    // Start the repair animation AFTER GIF finishes
     setRepairingTile({ ...target, returning: false });
     repairStartPosRef.current = { ...initialPosRef.current };
     setIsWalking(true);
   }, 7000);
 };
+
 
 
 
@@ -381,7 +373,7 @@ useEffect(() => {
 
       if (!repairingTile.returning) {
         targetX = repairingTile.xPos;
-        targetY = window.innerHeight / 2 + 120; // repair position
+        targetY = window.innerHeight / 2 + 120;
       } else {
         targetX = repairStartPosRef.current.x;
         targetY = repairStartPosRef.current.y;
@@ -390,10 +382,8 @@ useEffect(() => {
       const dx = targetX - pos.x;
       const dy = targetY - pos.y;
 
-      // Player reached target
       if (Math.abs(dx) <= speed && Math.abs(dy) <= speed) {
         if (!repairingTile.returning) {
-          // ✅ Repair immediately
           const updated = new Set(brokenTilesRef.current);
           updated.delete(repairingTile.idx);
           brokenTilesRef.current = updated;
@@ -403,7 +393,7 @@ useEffect(() => {
           setP2Score((s) => s + 50);
 
           setRepairingTile({ ...repairingTile, returning: true });
-          return pos; // keep player at repair position for one frame
+          return pos;
         } else {
           setStopped(false);
           setIsWalking(false);
@@ -425,7 +415,6 @@ useEffect(() => {
 
 
 
-  // --- Update player score after game ends ---
   const updateScoresInDB = async () => {
     try {
       if (player1Uid && p1Score > 0) {
@@ -442,23 +431,20 @@ useEffect(() => {
         await updateDoc(player2Doc, { score: currentP2Score + p2Score });
       }
 
-      // ✅ Reset scores after arrival
       setTimeout(() => {
         setP1Score(0);
         setP2Score(0);
       }, 500);
     } catch (err) {
-      console.error("❌ Failed to update scores:", err);
+      
     }
   };
 
   useEffect(() => {
-    // Just reset local round scores to 0 when game starts
     setP1Score(0);
     setP2Score(0);
   }, [player1Uid, player2Uid]);
 
-  // --- Helper function to format seconds ---
 function formatTime(seconds) {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -476,7 +462,6 @@ function formatTime(seconds) {
     }
   }, [player1Uid, player2Uid, navigate]);
 
-// --- Time tracking useEffect ---
 useEffect(() => {
   const startTime = Date.now();
 
@@ -497,7 +482,6 @@ useEffect(() => {
         const newTotal = currentTime + totalTime;
 
         await updateDoc(playerRef, { timeSpent: newTotal });
-        console.log(`🕒 Updated time for ${uid}: ${formatTime(newTotal)}`);
       };
 
       await Promise.all([
@@ -505,10 +489,9 @@ useEffect(() => {
         updatePlayerTime(player2Uid),
       ]);
 
-      // Reset localStorage after successful update
       localStorage.removeItem("unsavedTime");
     } catch (err) {
-      console.error("❌ Failed to update timeSpent:", err);
+      
     }
   };
 
@@ -525,14 +508,11 @@ useEffect(() => {
     const endTime = Date.now();
     const sessionTime = Math.floor((endTime - startTime) / 1000);
 
-    // Load previous unsaved time from localStorage
     const prevTime = parseInt(localStorage.getItem("unsavedTime")) || 0;
     const totalTime = prevTime + sessionTime;
 
-    // Save back to localStorage in case the user refreshes again
     localStorage.setItem("unsavedTime", totalTime);
 
-    // Now update Firestore
     try {
       const updatePlayerTime = async (uid) => {
         if (!uid) return;
@@ -547,15 +527,12 @@ useEffect(() => {
         updatePlayerTime(player2Uid),
       ]);
 
-      console.log(`🕒 Total time updated: ${totalTime}s`);
-      // Reset localStorage after successfully saving
       localStorage.removeItem("unsavedTime");
     } catch (err) {
-      console.error("❌ Failed to update timeSpent:", err);
+      
     }
   };
 
-  // Save on unmount
   window.addEventListener("beforeunload", saveTimeSpent);
   return () => {
     saveTimeSpent();
@@ -579,7 +556,6 @@ useEffect(() => {
     window.location.reload();
   };
 
-  // --- Arrival menu ---
  const renderArrivalMenu = () =>
   createPortal(
     <div
@@ -592,7 +568,7 @@ useEffect(() => {
         width: "100vw",
         height: "100vh",
         fontFamily: "'Press Start 2P', cursive",
-        paddingLeft: "10px", // 👈 adjust this to move further/closer from the left
+        paddingLeft: "10px",
       }}
     >
       <div className="flex flex-col text-left space-y-8">
@@ -614,7 +590,6 @@ useEffect(() => {
   );
 
 
-  // --- Pause menu ---
   const renderMenu = () =>
     createPortal(
       <div
@@ -720,7 +695,6 @@ tiles.push(
       />
     ) : (
       <>
-        {/* Broken tile gap */}
         <div
           style={{
             width: "100%",
@@ -729,7 +703,6 @@ tiles.push(
             pointerEvents: "none",
           }}
         />
-        {/* Broken railway picture overlay */}
         <img
           src="/assets/broken railway.png"
           alt="Broken Rail"

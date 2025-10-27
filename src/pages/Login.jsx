@@ -147,7 +147,7 @@ const toggleBtn = `
       </h1>
 
       <div className="z-10 flex justify-between w-3/4 mx-auto gap-6">
-        {/* Player 1 */}
+      
         <div className="w-64 p-6 bg-white rounded-lg flex flex-col items-start shadow-lg">
           {player1Status !== "logged_in" ? (
             <>
@@ -198,7 +198,7 @@ const toggleBtn = `
             </button>
             <button
               className={toggleBtn}
-              style={{ marginTop: "12px" }} // space between buttons
+              style={{ marginTop: "12px" }} 
               onClick={() => setPlayer1Mode(player1Mode === "login" ? "register" : "login")}
             >
               {player1Mode === "login" ? "Register instead" : "Back to login"}
@@ -212,7 +212,7 @@ const toggleBtn = `
           )}
         </div>
 
-        {/* Player 2 */}
+        
         <div className="w-64 p-6 bg-white rounded-lg flex flex-col items-start shadow-lg">
           {player2Status !== "logged_in" ? (
             <>
@@ -263,7 +263,7 @@ const toggleBtn = `
             </button>
             <button
               className={toggleBtn}
-              style={{ marginTop: "12px" }} // space between buttons
+              style={{ marginTop: "12px" }} 
               onClick={() => setPlayer2Mode(player2Mode === "login" ? "register" : "login")}
             >
               {player2Mode === "login" ? "Register instead" : "Back to login"}

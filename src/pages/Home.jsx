@@ -6,7 +6,7 @@ export default function Home() {
 
   useEffect(() => {
     const handleStart = () => {
-      navigate("/login"); // Redirect to login page
+      navigate("/login"); 
     };
 
     window.addEventListener("keydown", handleStart);
@@ -28,10 +28,9 @@ export default function Home() {
         backgroundRepeat: "no-repeat",
       }}
     >
-      {/* Overlay */}
+      
       <div className="absolute inset-0 bg-black/40 z-0"></div>
 
-      {/* Game Title */}
       <h1
         className="absolute top-[10%] text-6xl font-extrabold z-10"
         style={{ fontFamily: "'Press Start 2P', cursive" }}
@@ -39,7 +38,6 @@ export default function Home() {
         Train and the Bridge
       </h1>
 
-      {/* Press key text */}
       <p
         className="absolute bottom-[20%] text-2xl animate-pulse z-10"
         style={{ fontFamily: "'Press Start 2P', cursive" }}
