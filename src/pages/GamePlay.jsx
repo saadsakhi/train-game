@@ -89,13 +89,15 @@ export default function GamePlay({ speed = 500 }) {
   
   const tileWidth = W * 0.2; 
   const railHeight = H * 0.15; 
-  const trainHeight = H * 0.14; 
+  const trainHeight = H * 0.16; 
   const brokenRailWidth = W * 0.08; 
   const playerHeight = H * 0.18; 
   const stopBuffer = W * 0.03; 
   const trainWidth = W * 0.65;
   const stationWidth = W * 0.20;
   const playerWidth = W * 0.14;
+  const textScale = Math.min(W, H) / 800;
+
 const [player1Pos, setPlayer1Pos] = useState({
   x: W * 0.13,
   y: H / 2 + H * 0.1,
@@ -624,30 +626,33 @@ useEffect(() => {
     window.location.reload();
   };
 
- const renderArrivalMenu = () =>
-  createPortal(
+const renderArrivalMenu = () => {
+  const textScale = Math.min(W, H) / 800;
+  return createPortal(
     <div
       id="arrival-overlay"
       className="fixed inset-0 flex flex-col justify-center items-start bg-black/80 backdrop-blur-sm z-[999999]"
       style={{
         position: "fixed",
-        top: -120,
+        top: -H * 0.18,
         left: 0,
         width: "100vw",
         height: "100vh",
         fontFamily: "'Press Start 2P', cursive",
-        paddingLeft: "10px",
+        paddingLeft: `${W * 0.02}px`,
       }}
     >
-      <div className="flex flex-col text-left space-y-8">
+      <div className="flex flex-col text-left" style={{ gap: `${H * 0.005}px` }}>
         <p
-          className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          className="text-white cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          style={{ fontSize: `${20 * textScale}px` }}
           onClick={handlePlayAgain}
         >
           🔁 Play Again
         </p>
         <p
-          className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          className="text-white cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          style={{ fontSize: `${20 * textScale}px` }}
           onClick={handleExit}
         >
           🏠 Exit to Main Menu
@@ -656,42 +661,53 @@ useEffect(() => {
     </div>,
     document.body
   );
+};
 
-
-  const renderMenu = () =>
-    createPortal(
-      <div
-        id="pause-overlay"
-        className="fixed inset-0 flex flex-col justify-center items-center bg-black/80 backdrop-blur-sm z-[999999]"
-        style={{
-          position: "fixed",
-          top: -140,
-          left: -600,
-          width: "100vw",
-          height: "100vh",
-          fontFamily: "'Press Start 2P', cursive",
-        }}
+const renderMenu = () => {
+  const textScale = Math.min(W, H) / 800;
+  return createPortal(
+    <div
+      id="pause-overlay"
+      className="fixed inset-0 flex flex-col justify-center items-center bg-black/80 backdrop-blur-sm z-[999999]"
+      style={{
+        position: "absolute",
+        top: -H * 0.22,
+        left: -W * 0.37,
+        width: "100vw",
+        height: "100vh",
+        fontFamily: "'Press Start 2P', cursive",
+      }}
+    >
+      <h2
+        className="text-white font-extrabold mb-12 drop-shadow-lg text-center"
+        style={{ fontSize: `${25 * textScale}px`, marginBottom: `${H * 0.01}px` }}
       >
-        <h2 className="text-5xl text-white font-extrabold mb-12 drop-shadow-lg text-center">
-          Game Paused
-        </h2>
-        <div className="flex flex-col items-center text-center space-y-8">
-          <p
-            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
-            onClick={handleResume}
-          >
-            ▶ Resume
-          </p>
-          <p
-            className="text-white text-3xl cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
-            onClick={handleExit}
-          >
-            🏠 Exit to Main Menu
-          </p>
-        </div>
-      </div>,
-      document.body
-    );
+        Game Paused
+      </h2>
+      <div
+        className="flex flex-col items-center text-center"
+        style={{ gap: `${H * 0.001}px` }}
+      >
+        <p
+          className="text-white cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          style={{ fontSize: `${20 * textScale}px` }}
+          onClick={handleResume}
+        >
+          ▶ Resume
+        </p>
+        <p
+          className="text-white cursor-pointer transition-transform duration-200 hover:scale-125 drop-shadow-lg"
+          style={{ fontSize: `${20 * textScale}px` }}
+          onClick={handleExit}
+        >
+          🏠 Exit to Main Menu
+        </p>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 
   if (!loaded)
     return <div className="w-screen h-screen flex items-center justify-center bg-black text-white">Loading assets...</div>;
@@ -720,7 +736,7 @@ useEffect(() => {
 <div
   style={{
     position: "absolute",
-    top: "28%",
+    top: `${H * 0.31}px`,
     left: `${stationIndex * tileWidth - offset + W * 0.05}px`,
     transform: "translateY(-50%)",
     width: `${stationWidth}px`,
@@ -758,9 +774,9 @@ useEffect(() => {
   style={{
     position: "absolute",
     left: `${x}px`,
-    top: 0,
+    top: `${H * 0.01}px`,
     width: `${tileWidth}px`,
-    height: "100%",
+    height: `${railHeight}px`,
   }}
 >
   {!isBroken ? (
@@ -793,7 +809,7 @@ useEffect(() => {
           left: "50%",
           transform: "translateX(-50%)",
           width: `${brokenRailWidth}px`,
-          height: "auto",
+          height: `${railHeight}px`,
           zIndex: 7,
           pointerEvents: "none",
           userSelect: "none",
@@ -814,7 +830,7 @@ useEffect(() => {
   draggable="false"
   style={{
     position: "absolute",
-    top: 0,
+    top: `${H * 0.009}px`,
     left: "0%",
     height: `${trainHeight}px`,
     width: `${trainWidth}px`,
@@ -851,30 +867,83 @@ useEffect(() => {
 
 
 
-      <div className="absolute top-3 left-3 z-20 text-white bg-black/60 p-3 rounded" style={{ lineHeight: 1.7, left: "10px" }}>
-        <div className="text-sm">Player 1 : <span className="font-normal">{p1Name} - Score {p1Score}</span></div>
-        <div className="text-sm mt-1">Player 2 : <span className="font-normal">{p2Name} - Score {p2Score}</span></div>
-        <div className="text-sm mt-4" style={{ marginTop: "40px" }}>Click ESC to pause the game </div>
-      </div>
-      {!isMoving && !stopped && !arrived && (
-        <p className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-white z-10">
-          Player 2 : Use space button to move the train
-        </p>
-      )}
-      {stopped && !arrived && (
-        <p className="absolute bottom-[65%] left-1/2 transform -translate-x-1/2 text-2xl animate-pulse text-red-400 z-20">
-          🚧 Track damaged! Use arrows to reach it, then click to repair!
-        </p>
-      )}
-      {arrived && (
-        <>
-          <p className="absolute bottom-[30%] left-1/2 transform -translate-x-1/2 text-3xl text-green-400 animate-pulse z-20">
-            🚂 Train has arrived at the station!
-          </p>
-          {renderArrivalMenu()}
-        </>
-      )}
-      {showMenu && renderMenu()}
+
+<div
+  className="absolute z-20 text-white bg-black/60 rounded"
+  style={{
+    top: H * -0.01,               
+    left: W * 0.001,              
+    padding: `${H * 0.015}px`,   
+    fontSize: `${18 * textScale}px`,
+    lineHeight: 1.7,
+    borderRadius: `${H * 0.01}px`, 
+  }}
+>
+  <div>
+    Player 1 :{" "}
+    <span className="font-normal">
+      {p1Name} - Score {p1Score}
+    </span>
+  </div>
+  <div style={{ marginTop: H * 0.005 }}>
+    Player 2 :{" "}
+    <span className="font-normal">
+      {p2Name} - Score {p2Score}
+    </span>
+  </div>
+  <div style={{ marginTop: H * 0.04 }}>
+    Click ESC to pause the game
+  </div>
+</div>
+
+
+{!isMoving && !stopped && !arrived && (
+  <p
+    className="absolute transform -translate-x-1/2 animate-pulse text-white z-10"
+    style={{
+      bottom: H * 0.2,             
+      left: "50%",
+      fontSize: `${18 * textScale}px`,
+    }}
+  >
+    Player 2 : Use space button to move the train
+  </p>
+)}
+
+
+{stopped && !arrived && (
+  <p
+    className="absolute transform -translate-x-1/2 animate-pulse text-red-400 z-20"
+    style={{
+      bottom: H * 0.65,            
+      left: "50%",
+      fontSize: `${18 * textScale}px`,
+    }}
+  >
+    🚧 Track damaged! Use arrows to reach it, then click to repair!
+  </p>
+)}
+
+
+{arrived && (
+  <>
+    <p
+      className="absolute transform -translate-x-1/2 text-green-400 animate-pulse z-20"
+      style={{
+        bottom: H * 0.2,           
+        left: "50%",
+        fontSize: `${23 * textScale}px`,
+      }}
+    >
+      🚂 Train has arrived at the station!
+    </p>
+    {renderArrivalMenu()}
+  </>
+)}
+
+
+{showMenu && renderMenu()}
+
     </div>
   );
 }
