@@ -4,7 +4,95 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseDB";
 import { createPortal } from "react-dom";
 
+ 
+
 export default function GamePlay({ speed = 500 }) {
+  const gameRef = useRef(null);
+  const [screenSize, setScreenSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      const container = gameRef.current;
+
+      if (!container) return;
+
+      if (width < height) {
+        
+        console.log("📱 Rotating gameplay to landscape...");
+        setIsRotated(true);
+
+        
+        [width, height] = [height, width];
+
+        container.style.transform = "rotate(90deg)";
+        container.style.transformOrigin = "center center";
+        container.style.position = "fixed";
+        container.style.top = "0";
+        container.style.left = "0";
+        container.style.width = `${height}px`;
+        container.style.height = `${width}px`;
+        container.style.backgroundColor = "black";
+        container.style.overflow = "hidden";
+
+        document.body.style.margin = "0";
+        document.documentElement.style.margin = "0";
+        document.body.style.overflow = "hidden";
+        document.documentElement.style.overflow = "hidden";
+      } else {
+        console.log("💻 Landscape mode — no rotation.");
+        setIsRotated(false);
+
+        container.style.transform = "";
+        container.style.width = "100vw";
+        container.style.height = "100vh";
+        container.style.position = "fixed";
+        container.style.top = "0";
+        container.style.left = "0";
+        container.style.backgroundColor = "black";
+
+        document.body.style.margin = "";
+        document.documentElement.style.margin = "";
+        document.body.style.overflow = "";
+        document.documentElement.style.overflow = "";
+      }
+
+      setScreenSize({ width, height });
+    };
+
+    handleResize(); 
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const BASE_WIDTH = screenSize.width;
+  const BASE_HEIGHT = screenSize.height;
+  const targetAspect = BASE_WIDTH / BASE_HEIGHT;
+  const windowAspect = window.innerWidth / window.innerHeight;
+
+  const [scale, setScale] = useState(() =>
+    windowAspect > targetAspect
+      ? window.innerHeight / BASE_HEIGHT
+      : window.innerWidth / BASE_WIDTH
+  );
+
+  useEffect(() => {
+    const handleScale = () => {
+      const newScale =
+        windowAspect > targetAspect
+          ? window.innerHeight / BASE_HEIGHT
+          : window.innerWidth / BASE_WIDTH;
+      setScale(newScale);
+    };
+    window.addEventListener("resize", handleScale);
+    return () => window.removeEventListener("resize", handleScale);
+  }, [BASE_WIDTH, BASE_HEIGHT]);
+
+
   const location = useLocation();
   const navigate = useNavigate();
   const { player1Uid, player2Uid } = location.state || {};
@@ -17,7 +105,7 @@ export default function GamePlay({ speed = 500 }) {
   const [arrived, setArrived] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
-  const [player1Pos, setPlayer1Pos] = useState({ x: 200, y: window.innerHeight / 2 + 80 });
+
   const initialPosRef = useRef({ x: 200, y: window.innerHeight / 2 + 80 });
   const [isWalking, setIsWalking] = useState(false);
 
@@ -43,9 +131,29 @@ export default function GamePlay({ speed = 500 }) {
   const [repairingGif, setRepairingGif] = useState(false);
   const repairGifPosRef = useRef({ x: 0, y: 0 }); 
   const bgMusicRef = useRef(null);
-  const hasStartedRef = useRef(false);
+  const W = screenSize.width;
+  const H = screenSize.height;
+  
+  const tileWidth = W * 0.2; 
+  const railHeight = H * 0.15; 
+  const trainHeight = H * 0.14; 
+  const brokenRailWidth = W * 0.08; 
+  const playerHeight = H * 0.18; 
+  const stopBuffer = W * 0.03; 
+  const trainWidth = W * 0.65;
+  const stationWidth = W * 0.20;
+  const playerWidth = W * 0.14;
+const [player1Pos, setPlayer1Pos] = useState({
+  x: W * 0.13,
+  y: H / 2 + H * 0.1,
+});
 
 
+  const stopTrain = () => {
+  setStopped(true);
+  setIsMoving(false);
+  cancelAnimationFrame(rafRef.current);
+};
 
   useEffect(() => {
     const preventZoomKeys = (e) => {
@@ -226,7 +334,7 @@ useEffect(() => {
   const pressedKeysRef = useRef(new Set());
   useEffect(() => {
     if (stopped && !arrived && !repairingTile && !showMenu) {
-      const moveSpeed = 10;
+      const moveSpeed = window.innerWidth * 0.01; 
       const handleKeyDown = (e) => {
         if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
           pressedKeysRef.current.add(e.key);
@@ -287,39 +395,47 @@ useEffect(() => {
       });
       if (!stopped && isMoving) rafRef.current = requestAnimationFrame(step);
     };
-    const checkStop = (currentOffset) => {
-      const tileWidth = 300;
-      const trainTileIndex = Math.floor(currentOffset / tileWidth);
-      if (trainTileIndex >= stationIndex - 2) {
-        setArrived(true);
+const checkStop = (currentOffset) => {
+  const trainFront = trainWidth; 
+
+  const trainTileIndex = Math.floor(currentOffset / tileWidth);
+
+  if (trainTileIndex >= stationIndex - 2) {
+    setArrived(true);
+    setStopped(true);
+    setIsMoving(false);
+    cancelAnimationFrame(rafRef.current);
+    updateScoresInDB();
+    return;
+  }
+
+  const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
+  const baseOffset = currentOffset % tileWidth;
+  const leftmostIndex = Math.floor(currentOffset / tileWidth);
+
+  for (let i = -1; i < visibleTiles - 1; i++) {
+    const idx = leftmostIndex + i;
+
+    if (brokenTilesRef.current.has(idx)) {
+      const gapX = -baseOffset + i * tileWidth; 
+      const trainFrontX = trainFront; 
+
+      if (gapX - trainFrontX <= stopBuffer && gapX - trainFrontX > -tileWidth) {
         setStopped(true);
         setIsMoving(false);
         cancelAnimationFrame(rafRef.current);
-        updateScoresInDB();
-        return;
+        break;
       }
-      const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
-      const baseOffset = currentOffset % tileWidth;
-      const leftmostIndex = Math.floor(currentOffset / tileWidth);
-      for (let i = -1; i < visibleTiles - 1; i++) {
-        const idx = leftmostIndex + i;
-        if (brokenTilesRef.current.has(idx)) {
-          const x = -baseOffset + i * tileWidth;
-          if (x >= 0 && x + tileWidth <= window.innerWidth - 150) {
-            setStopped(true);
-            setIsMoving(false);
-            cancelAnimationFrame(rafRef.current);
-            break;
-          }
-        }
-      }
-    };
+    }
+  }
+};
+
+
     rafRef.current = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(rafRef.current); lastTimeRef.current = null; };
   }, [loaded, speed, stopped, isMoving, arrived, showMenu]);
 
   const isClickOnGap = (e) => {
-    const tileWidth = 300;
     const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
     const baseOffset = offset % tileWidth;
     const leftmostIndex = Math.floor(offset / tileWidth);
@@ -339,7 +455,6 @@ const handleRepairClick = (e) => {
   const target = isClickOnGap(e);
   if (!target) return;
 
-  const tileWidth = 300;
   const tileLeft = target.xPos;
   const tileRight = tileLeft + tileWidth;
   const playerWidth = 50;
@@ -629,8 +744,32 @@ useEffect(() => {
     return <div className="w-screen h-screen flex items-center justify-center bg-black text-white">Loading assets...</div>;
 
   return (
+  <div
+    ref={gameRef} 
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100vw",
+      height: "100vh",
+      overflow: "hidden",
+      backgroundColor: "black",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+    }}
+  >
     <div
-      className="w-screen h-screen overflow-hidden bg-black relative"
+      className="w-full h-full overflow-hidden bg-black relative"
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: "center center",
+        position: "relative",
+      }}
+    >
+        
+        <div
+          className="w-full h-full overflow-hidden bg-black relative"
       style={{ fontFamily: "'Press Start 2P', cursive" }}
       onClick={handleRepairClick}
     >
@@ -645,22 +784,22 @@ useEffect(() => {
           zIndex: 1,
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          top: "28%",
-          left: `${stationIndex * 300 - offset + 100}px`,
-          transform: "translateY(-50%)",
-          width: "350px",
-          height: "auto",
-          zIndex: 6,
-        }}
-      >
+<div
+  style={{
+    position: "absolute",
+    top: "28%",
+    left: `${stationIndex * tileWidth - offset + W * 0.05}px`,
+    transform: "translateY(-50%)",
+    width: `${stationWidth}px`,
+    height: "auto",
+    zIndex: 6,
+  }}
+>
+
         <img src={images.station.src} alt="Station" style={{ width: "100%", height: "auto", pointerEvents: "none", userSelect: "none" }} />
       </div>
       <div style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", width: "100%", height: "100px", zIndex: 5 }}>
         {(() => {
-          const tileWidth = 300;
           const visibleTiles = Math.ceil(window.innerWidth / tileWidth) + 2;
           const baseOffset = offset % tileWidth;
           const leftmostIndex = Math.floor(offset / tileWidth);
@@ -680,84 +819,103 @@ useEffect(() => {
             const idx = leftmostIndex + i;
             const x = -baseOffset + i * tileWidth;
             const isBroken = brokenTiles.has(idx);
-tiles.push(
-  <div key={`rail-${idx}`} style={{ position: "absolute", left: `${x}px`, top: 0, width: `${tileWidth}px`, height: "100%" }}>
-    {!isBroken ? (
+    tiles.push(
+<div
+  key={`rail-${idx}`}
+  style={{
+    position: "absolute",
+    left: `${x}px`,
+    top: 0,
+    width: `${tileWidth}px`,
+    height: "100%",
+  }}
+>
+  {!isBroken ? (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        backgroundImage: `url(${images.rail.src})`,
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "100% 100%",
+        pointerEvents: "none",
+      }}
+    />
+  ) : (
+    <>
       <div
         style={{
           width: "100%",
           height: "100%",
-          backgroundImage: `url(${images.rail.src})`,
-          backgroundRepeat: "no-repeat",
-          backgroundSize: "100% 100%",
+          background: "transparent",
           pointerEvents: "none",
         }}
       />
-    ) : (
-      <>
-        <div
-          style={{
-            width: "100%",
-            height: "100%",
-            background: "transparent",
-            pointerEvents: "none",
-          }}
-        />
-        <img
-          src="/assets/broken railway.png"
-          alt="Broken Rail"
-          style={{
-            position: "absolute",
-            top: "110px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "120px",
-            height: "auto",
-            zIndex: 7,
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        />
-      </>
-    )}
-  </div>
-);
+      <img
+        src="/assets/broken railway.png"
+        alt="Broken Rail"
+        style={{
+          position: "absolute",
+          top: `${H * 0.14}px`,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: `${brokenRailWidth}px`,
+          height: "auto",
+          zIndex: 7,
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      />
+    </>
+  )}
+</div>
+
+    );
 
           }
           return tiles;
         })()}
-        <img
-          src={images.train.src}
-          alt="Train"
-          draggable="false"
-          style={{
-            position: "absolute",
-            bottom: "-3px",
-            left: "0%",
-            height: "104px",
-            zIndex: 10,
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        />
+<img
+  src={images.train.src}
+  alt="Train"
+  draggable="false"
+  style={{
+    position: "absolute",
+    top: 0,
+    left: "0%",
+    height: `${trainHeight}px`,
+    width: `${trainWidth}px`,
+    zIndex: 10,
+    pointerEvents: "none",
+    userSelect: "none",
+  }}
+/>
+
 
       </div>
-        <img
-          src={repairingGif ? "/assets/gif2.gif" : isWalking ? images.walking.src : images.walkingStatic.src}
-          alt="Player 1"
-          style={{
-            position: "absolute",
-            left: `${repairingGif ? repairGifPosRef.current.x : player1Pos.x}px`,
-            top: `${repairingGif ? repairGifPosRef.current.y : player1Pos.y}px`,
-            height: "120px",
-            width: "auto",
-            zIndex: 20,
-            transition: "transform 0.1s",
-            transform: isWalking ? "scale(1.05)" : "scale(1)",
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        />
+<img
+  src={
+    repairingGif
+      ? "/assets/gif2.gif"
+      : isWalking
+      ? images.walking.src
+      : images.walkingStatic.src
+  }
+  alt="Player 1"
+  style={{
+    position: "absolute",
+    left: `${repairingGif ? repairGifPosRef.current.x : player1Pos.x}px`,
+    top: `${repairingGif ? repairGifPosRef.current.y : player1Pos.y}px`,
+    height: `${playerHeight}px`,
+    width: `${playerWidth}px`,
+    zIndex: 20,
+    transition: "transform 0.1s",
+    transform: isWalking ? "scale(1.05)" : "scale(1)",
+    pointerEvents: "none",
+    userSelect: "none",
+  }}
+/>
+
 
 
       <div className="absolute top-3 left-3 z-20 text-white bg-black/60 p-3 rounded" style={{ lineHeight: 1.7, left: "10px" }}>
@@ -784,6 +942,8 @@ tiles.push(
         </>
       )}
       {showMenu && renderMenu()}
+    </div>
+    </div>
     </div>
   );
 }
