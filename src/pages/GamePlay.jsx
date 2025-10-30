@@ -3,11 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseDB";
 import { createPortal } from "react-dom";
-
+import "./App.css";
  
 
 export default function GamePlay({ speed = 500 }) {
-  const gameRef = useRef(null);
   const [screenSize, setScreenSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -15,56 +14,12 @@ export default function GamePlay({ speed = 500 }) {
 
   useEffect(() => {
     const handleResize = () => {
-      let width = window.innerWidth;
-      let height = window.innerHeight;
-      const container = gameRef.current;
-
-      if (!container) return;
-
-      if (width < height) {
-        
-        console.log("📱 Rotating gameplay to landscape...");
-        setIsRotated(true);
-
-        
-        [width, height] = [height, width];
-
-        container.style.transform = "rotate(90deg)";
-        container.style.transformOrigin = "center center";
-        container.style.position = "fixed";
-        container.style.top = "0";
-        container.style.left = "0";
-        container.style.width = `${height}px`;
-        container.style.height = `${width}px`;
-        container.style.backgroundColor = "black";
-        container.style.overflow = "hidden";
-
-        document.body.style.margin = "0";
-        document.documentElement.style.margin = "0";
-        document.body.style.overflow = "hidden";
-        document.documentElement.style.overflow = "hidden";
-      } else {
-        console.log("💻 Landscape mode — no rotation.");
-        setIsRotated(false);
-
-        container.style.transform = "";
-        container.style.width = "100vw";
-        container.style.height = "100vh";
-        container.style.position = "fixed";
-        container.style.top = "0";
-        container.style.left = "0";
-        container.style.backgroundColor = "black";
-
-        document.body.style.margin = "";
-        document.documentElement.style.margin = "";
-        document.body.style.overflow = "";
-        document.documentElement.style.overflow = "";
-      }
-
-      setScreenSize({ width, height });
+      setScreenSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
     };
 
-    handleResize(); 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -91,8 +46,6 @@ export default function GamePlay({ speed = 500 }) {
     window.addEventListener("resize", handleScale);
     return () => window.removeEventListener("resize", handleScale);
   }, [BASE_WIDTH, BASE_HEIGHT]);
-
-
   const location = useLocation();
   const navigate = useNavigate();
   const { player1Uid, player2Uid } = location.state || {};
@@ -744,29 +697,9 @@ useEffect(() => {
     return <div className="w-screen h-screen flex items-center justify-center bg-black text-white">Loading assets...</div>;
 
   return (
-  <div
-    ref={gameRef} 
-    style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      width: "100vw",
-      height: "100vh",
-      overflow: "hidden",
-      backgroundColor: "black",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <div
-      className="w-full h-full overflow-hidden bg-black relative"
-      style={{
-        transform: `scale(${scale})`,
-        transformOrigin: "center center",
-        position: "relative",
-      }}
-    >
+
+
+  
         
         <div
           className="w-full h-full overflow-hidden bg-black relative"
@@ -942,8 +875,6 @@ useEffect(() => {
         </>
       )}
       {showMenu && renderMenu()}
-    </div>
-    </div>
     </div>
   );
 }
