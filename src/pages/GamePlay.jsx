@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseDB";
 import { createPortal } from "react-dom";
-import "./App.css";
+
  
 
 export default function GamePlay({ speed = 500 }) {
