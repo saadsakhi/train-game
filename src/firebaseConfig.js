@@ -2,12 +2,12 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD2j9gP910dTMwaNeNgYg6qn9zUbED_JMg",
-  authDomain: "train-asat.firebaseapp.com",
-  projectId: "train-asat",
-  storageBucket: "train-asat.firebasestorage.app",
-  messagingSenderId: "668292534953",
-  appId: "1:668292534953:web:c008cbd52f8b6e4af3cfb8"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
