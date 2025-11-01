@@ -459,8 +459,8 @@ useEffect(() => {
           brokenTilesRef.current = updated;
           setBrokenTiles(updated);
 
-          setP1Score((s) => s + 50);
-          setP2Score((s) => s + 50);
+          setP1Score((s) => s + 100);
+          setP2Score((s) => s + 100);
 
           setRepairingTile({ ...repairingTile, returning: true });
           return pos;
